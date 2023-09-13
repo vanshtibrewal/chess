@@ -1,112 +1,109 @@
 import { useState } from 'react';
 
-function Square({ value, onSquareClick }) {
-  return (
-    <button className="square" onClick={onSquareClick}>
-      {value}
-    </button>
-  );
+function Square({ onSquareClick, parity, piece }) {
+  let color = parity ? "light" : "dark";
+  if (piece == null) {
+    return (
+      <button className={"square " + color} onClick={onSquareClick}>
+      </button>
+    );
+  }
+  else {
+    let n;
+    if (piece.color == "w") {
+      n = 0;
+    }
+    else {
+      n = 1;
+    }
+    return (
+      <button className={"square " + color} onClick={onSquareClick}>
+        <img className="square" src={"/images/" + piece.type + "_" + n + ".png"}/>
+      </button>
+    );
+  }
 }
 
-function Board({xIsNext, squares, onPlay}) {
-  function handleClick(i) {
-    const newSquares = squares.slice();
-    if (newSquares[i] == null) {
-      if (xIsNext) {
-        newSquares[i] = 'X';
-      }
-      else {
-        newSquares[i] = 'O';
-      }
-      onPlay(newSquares);
+function Board({ board }) {
+  let b = [];
+  let row;
+  let p = new Piece();
+  for (let i = 0; i < 8; i++) {
+    row = [];
+    for (let j = 0; j < 8; j++) {
+      row.push(<Square onSquareClick={() => handleClick(0)} parity={(i + j) % 2 == 0} piece={board[i][j]} key={j}/>);
     }
+    b.push(<div className="board-row" key={i}>{row}</div>);
   }
-
-  const winner = calculateWinner(squares);
-  let status;
-  if (winner) {
-    status = "Winner: " + winner;
-  } else {
-    status = "Next player: " + (xIsNext ? "X" : "O");
-  }
-
-  return (
-    <>
-      <div className="status">{status}</div>
-      <div className="board-row">
-        <Square value={squares[0]} onSquareClick={() => handleClick(0)}/>
-        <Square value={squares[1]} onSquareClick={() => handleClick(1)}/>
-        <Square value={squares[2]} onSquareClick={() => handleClick(2)}/>
-      </div>
-      <div className="board-row">
-        <Square value={squares[3]} onSquareClick={() => handleClick(3)}/>
-        <Square value={squares[4]} onSquareClick={() => handleClick(4)}/>
-        <Square value={squares[5]} onSquareClick={() => handleClick(5)}/>
-      </div>
-      <div className="board-row">
-        <Square value={squares[6]} onSquareClick={() => handleClick(6)}/>
-        <Square value={squares[7]} onSquareClick={() => handleClick(7)}/>
-        <Square value={squares[8]} onSquareClick={() => handleClick(8)}/>
-      </div>
-    </>
-  );
+  return (<>{b}</>);
 }
 
 export default function Game() {
-  const [history, setHistory] = useState([Array(9).fill(null)]);
-
-  const currentSquares = history[history.length - 1];
-
-  function handlePlay(nextSquares) {
-    setHistory([...history, nextSquares]);
-  }
-
-  function jumpTo(nextMove) {
-    setHistory(history.slice(0, nextMove + 1));
-  }
-
-  const moves = history.map((squares, move) => {
-    let description;
-    if (move > 0) {
-      description = 'Go to move #' + move;
-    } else {
-      description = 'Go to game start';
-    }
-    return (
-      <li key={move}>
-        <button onClick={() => jumpTo(move)}>{description}</button>
-      </li>
-    );
-  });
-
+  const [board, setBoard] = useState(getBoardFromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"));
   return (
     <div className="game">
       <div className="game-board">
-        <Board xIsNext={history.length % 2 != 0} squares={currentSquares} onPlay={handlePlay}/>
-      </div>
-      <div className="game-info">
-        <ol>{moves}</ol>
+        <Board board={board}/>
       </div>
     </div>
   );
 }
 
-function calculateWinner(squares) {
-  const lines = [
-    [0, 1, 2],
-    [3, 4, 5],
-    [6, 7, 8],
-    [0, 3, 6],
-    [1, 4, 7],
-    [2, 5, 8],
-    [0, 4, 8],
-    [2, 4, 6]
-  ];
-  for (let i = 0; i < lines.length; i++) {
-    const [a, b, c] = lines[i];
-    if (squares[a] && squares[a] === squares[b] && squares[a] === squares[c]) {
-      return squares[a];
-    }
+class Piece {
+  constructor(type, color, movement) {
+    this.type = type;
+    this.color = color;
+    this.movement = movement;
   }
-  return null;
+}
+
+function makePiece(id, color) {
+  if (id == "p") {
+    let dir = color == "b" ? 1 : -1;
+    return new Piece("p", color, [[dir, 0], [dir, 1], [dir, -1]]);
+  }
+  else if (id == "n") {
+    return new Piece("n", color, [[1, 2], [2, 1], [-1, 2], [-2, 1], [1, -2], [2, -1], [-1, -2], [-2, -1]]);
+  }
+  else if (id == "b") {
+    return new Piece("b", color, [[1, 1], [1, -1], [-1, 1], [-1, -1]]);
+  }
+  else if (id == "r") {
+    return new Piece("r", color, [[1, 0], [-1, 0], [0, 1], [0, -1]]);
+  }
+  else if (id == "q") {
+    return new Piece("q", color, [[1, 1], [1, -1], [-1, 1], [-1, -1], [1, 0], [-1, 0], [0, 1], [0, -1]]);
+  }
+  else if (id == "k") {
+    return new Piece("k", color, [[1, 1], [1, 0], [1, -1], [0, 1], [0, -1], [-1, 1], [-1, 0], [-1, -1]]);
+  }
+}
+
+function getBoardFromFEN(FEN) {
+  let board = Array(8).fill(null).map(() => Array(8).fill(null));
+  let char;
+  let j;
+  let counter = 0;
+  for (let i = 0; i < 8; i++) {
+    j = 0;
+    while (j < 8) {
+      char = FEN.charAt(counter);
+      if (!isNaN(char)) {
+        j += Number(char);
+      }
+      else {
+        if (char == char.toLowerCase()) {
+          board[i][j] = makePiece(char, "b");
+        }
+        else {
+          char = char.toLowerCase();
+          board[i][j] = makePiece(char, "w");
+        }
+        j++;
+      }
+      counter++;
+    }
+    counter++;
+  }
+  return board;
 }
