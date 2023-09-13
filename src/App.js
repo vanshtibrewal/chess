@@ -81,13 +81,11 @@ function makePiece(id, color) {
 
 function getBoardFromFEN(FEN) {
   let board = Array(8).fill(null).map(() => Array(8).fill(null));
-  let char;
-  let j;
   let counter = 0;
   for (let i = 0; i < 8; i++) {
-    j = 0;
+    let j = 0;
     while (j < 8) {
-      char = FEN.charAt(counter);
+      let char = FEN.charAt(counter);
       if (!isNaN(char)) {
         j += Number(char);
       }
