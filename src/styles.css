@@ -73,6 +73,14 @@ body {
   background: #f0d8c0;
 }
 
+.light-highlight {
+  background: #8476BA;
+}
+
+.dark-highlight {
+  background: #675c91;
+}
+
 .board-row:after {
   clear: both;
   content: '';
