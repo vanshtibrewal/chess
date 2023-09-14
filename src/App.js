@@ -99,7 +99,23 @@ class Piece {
 
   getLegalMoveSet(board, position) {
     if (this.isSliding()) {
-      let legalmoves = [];
+      return this.getSlidingMoveSet(board, position);
+    }
+    else {
+      if (this.type == "n") {
+        return this.getKnightMoveSet(board, position);
+      }
+      else if (this.type == "p") {
+        return this.getPawnMoveSet(board, position);
+      }
+      else {
+        return []
+      }
+    }
+  }
+
+  getSlidingMoveSet(board, position) {
+    let legalmoves = [];
       for (let i = 0; i < this.movement.length; i++) {
         let dy = this.movement[i][0];
         let dx = this.movement[i][1];
@@ -115,61 +131,48 @@ class Piece {
         }
       }
       return legalmoves;
-    }
-    else {
-      if (this.type == "n") {
-        let legalmoves = [];
-        for (let i = 0; i < this.movement.length; i++) {
-          let tary = position.y + this.movement[i][0];
-          let tarx = position.x + this.movement[i][1];
-          if (tary >= 0 && tary < 8 && tarx >= 0 && tarx < 8 && (board[tary][tarx].piece == null || board[tary][tarx].piece.color != this.color)) {
-            legalmoves.push({x: tarx, y: tary});
-          }
-        }
-        return legalmoves;
-      }
-      else if (this.type == "p") {
-        let legalmoves = this.getLegalAttackSet(board, position);
-        let dy = this.movement[0][0];
-        let dx = this.movement[0][1];
-        let tary = position.y + dy;
-        let tarx = position.x + dx;
-        if (tary >= 0 && tary < 8 && tarx >= 0 && tarx < 8 && board[tary][tarx].piece == null) {
-          legalmoves.push({x: tarx, y: tary});
-        }
-        if ((this.color == "w" && position.y == 6) || (this.color == "b" && position.y == 1)) {
-          tary += dy;
-          tarx += dx;
-          if (tary >= 0 && tary < 8 && tarx >= 0 && tarx < 8 && board[tary][tarx].piece == null) {
-            legalmoves.push({x: tarx, y: tary});
-          }
-        }
-        return legalmoves;
-      }
-      else {
-        return []
-      }
-    }
   }
 
-  getLegalAttackSet(board, position) {
-    if (this.isSliding() || this.type == "n") {
-      return this.getLegalMoveSet(board, position);
-    }
-    else if (this.type == "p") {
-      let legalmoves = [];
-      for (let i = 1; i < this.movement.length; i++){
-        let tary = position.y + this.movement[i][0];
-        let tarx = position.x + this.movement[i][1];
-        if (tary >= 0 && tary < 8 && tarx >= 0 && tarx < 8 && board[tary][tarx].piece != null && board[tary][tarx].piece.color != this.color) {
-          legalmoves.push({x: tarx, y: tary});
-        }
+  getKnightMoveSet(board, position) {
+    let legalmoves = [];
+    for (let i = 0; i < this.movement.length; i++) {
+      let tary = position.y + this.movement[i][0];
+      let tarx = position.x + this.movement[i][1];
+      if (tary >= 0 && tary < 8 && tarx >= 0 && tarx < 8 && (board[tary][tarx].piece == null || board[tary][tarx].piece.color != this.color)) {
+        legalmoves.push({x: tarx, y: tary});
       }
-      return legalmoves;
     }
-    else {
-      return []
+    return legalmoves;
+  }
+
+  getPawnMoveSet(board, position) {
+    let legalmoves = [];
+    
+    for (let i = 1; i < this.movement.length; i++){
+      let tary = position.y + this.movement[i][0];
+      let tarx = position.x + this.movement[i][1];
+      if (tary >= 0 && tary < 8 && tarx >= 0 && tarx < 8 && board[tary][tarx].piece != null && board[tary][tarx].piece.color != this.color) {
+        legalmoves.push({x: tarx, y: tary});
+      }
     }
+
+    let dy = this.movement[0][0];
+    let dx = this.movement[0][1];
+    let tary = position.y + dy;
+    let tarx = position.x + dx;
+
+    if (tary >= 0 && tary < 8 && tarx >= 0 && tarx < 8 && board[tary][tarx].piece == null) {
+      legalmoves.push({x: tarx, y: tary});
+    }
+
+    if ((this.color == "w" && position.y == 6) || (this.color == "b" && position.y == 1)) {
+      tary += dy;
+      tarx += dx;
+      if (tary >= 0 && tary < 8 && tarx >= 0 && tarx < 8 && board[tary][tarx].piece == null) {
+        legalmoves.push({x: tarx, y: tary});
+      }
+    }
+    return legalmoves;
   }
 }
 
