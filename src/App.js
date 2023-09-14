@@ -1,27 +1,14 @@
 import { useState } from 'react';
+import Draggable from 'react-draggable';
 
 function Square({ onSquareClick, parity, piece }) {
-  let color = parity ? "light" : "dark";
-  if (piece == null) {
-    return (
-      <button className={"square " + color} onClick={onSquareClick}>
-      </button>
-    );
-  }
-  else {
-    let n;
-    if (piece.color == "w") {
-      n = 0;
-    }
-    else {
-      n = 1;
-    }
-    return (
-      <button className={"square " + color} onClick={onSquareClick}>
-        <img className="square" src={"/images/" + piece.type + "_" + n + ".png"}/>
-      </button>
-    );
-  }
+  return (
+    <div className={"square " + (parity ? "light" : "dark")}>
+      <Draggable onStart={()=>{console.log("START")}} onStop={()=>{console.log("END")}}>
+          {getImgFromPiece(piece)}
+      </Draggable>
+    </div>
+  );
 }
 
 function Board({ board }) {
@@ -104,4 +91,14 @@ function getBoardFromFEN(FEN) {
     counter++;
   }
   return board;
+}
+
+function getImgFromPiece(piece) {
+  if (piece == null) {
+    return <></>
+  }
+  else {
+    let n = piece.color == "w" ? 0 : 1;
+    return (<img draggable="false" className="square img" src={"/images/" + piece.type + "_" + n + ".png"}/>);
+  }
 }
