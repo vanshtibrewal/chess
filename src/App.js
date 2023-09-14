@@ -1,24 +1,24 @@
 import { useState } from 'react';
 import Draggable from 'react-draggable';
 
-function Square({ onSquareClick, parity, piece }) {
+function Square({ onClick, onRelease, parity, piece }) {
   return (
     <div className={"square " + (parity ? "light" : "dark")}>
-      <Draggable onStart={()=>{console.log("START")}} onStop={()=>{console.log("END")}}>
+      <Draggable position={{x: 0, y: 0}}>
           {getImgFromPiece(piece)}
       </Draggable>
     </div>
   );
 }
 
-function Board({ board }) {
+function Board({ board, onClick, onRelease }) {
   let b = [];
   let row;
   let p = new Piece();
   for (let i = 0; i < 8; i++) {
     row = [];
     for (let j = 0; j < 8; j++) {
-      row.push(<Square onSquareClick={() => handleClick(0)} parity={(i + j) % 2 == 0} piece={board[i][j]} key={j}/>);
+      row.push(<Square onClick={onClick} onRelease={onRelease} parity={(i + j) % 2 == 0} piece={board[i][j]} key={j}/>);
     }
     b.push(<div className="board-row" key={i}>{row}</div>);
   }
@@ -27,11 +27,39 @@ function Board({ board }) {
 
 export default function Game() {
   const [board, setBoard] = useState(getBoardFromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"));
+  const [localMousePos, setLocalMousePos] = useState({});
+  const [clicked, setClicked] = useState({});
+
+  const handleMouseMove = (event) => {
+    const localX = event.clientX - event.currentTarget.offsetLeft;
+    const localY = event.clientY - event.currentTarget.offsetTop;
+
+    setLocalMousePos({ x: localX, y: localY });
+  };
+
+  function onClick() {
+    let click = {y: Math.floor(localMousePos.y/100), x: Math.floor(localMousePos.x/100)};
+    click.y = click.y < 0 ? 0 : click.y;
+    click.x = click.x < 0 ? 0 : click.x;
+    setClicked(click);
+  }
+
+  function onRelease() {
+    let newBoard = board.slice();
+    let click = {y: Math.floor(localMousePos.y/100), x: Math.floor(localMousePos.x/100)};
+    click.y = click.y < 0 ? 0 : click.y;
+    click.x = click.x < 0 ? 0 : click.x;
+    newBoard[click.y][click.x] = newBoard[clicked.y][clicked.x];
+    newBoard[clicked.y][clicked.x] = null;
+    setBoard(newBoard);
+  }
+
   return (
     <div className="game">
-      <div className="game-board">
-        <Board board={board}/>
+      <div onMouseDown={onClick} onMouseUp={onRelease}className="game-board" onMouseMove={handleMouseMove}>
+        <Board board={board} onClick={onClick} onRelease={onRelease}/>
       </div>
+      {Math.floor(localMousePos.y/100) + " " + Math.floor(localMousePos.x/100)}
     </div>
   );
 }
@@ -99,6 +127,10 @@ function getImgFromPiece(piece) {
   }
   else {
     let n = piece.color == "w" ? 0 : 1;
-    return (<img draggable="false" className="square img" src={"/images/" + piece.type + "_" + n + ".png"}/>);
+    return (<img position={{x: 0, y: 0}} draggable="false" className="square img" src={"/images/" + piece.type + "_" + n + ".png"}/>);
   }
+}
+
+function mousePosToBoardPos(x, y) {
+  return (x/100, y/100);
 }

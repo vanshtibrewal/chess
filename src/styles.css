@@ -58,11 +58,9 @@ body {
 
 .square {
   float: left;
-  height: 99px;
-  margin-right: -1px;
-  margin-top: -1px;
+  height: 100px;
+  width: 100px;
   padding: 0;
-  width: 99px;
   border-style: outset;
   border: none;
 }
