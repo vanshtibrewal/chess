@@ -28,6 +28,7 @@ function GameBoard({ board }) {
 }
 
 export default function Game() {
+  // const [board, setBoard] = useState(getBoardFromFEN("2Q2bnr/4p1pq/5pkr/7p/7P/4P3/PPPP1PP1/RNB1KBNR", false));
   const [board, setBoard] = useState(getBoardFromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR", false));
   const [localMousePos, setLocalMousePos] = useState({});
   const [clicked, setClicked] = useState({});
@@ -58,7 +59,23 @@ export default function Game() {
 
     function checkandmove(board) {
       if (board.highlighter.some(position => (position.y == click.y && position.x == click.x))) {
-        return board.makeMove(clicked, click);
+        let newboard = board.makeMove(clicked, click);
+        let out = []
+        let ourPieces = newboard.isBlackTurn ? newboard.blackPieces : newboard.whitePieces;
+        for (let i = 0; i < ourPieces.length; i++) {
+          out = [...out, ...newboard.getLegalMoveSet(ourPieces[i])]
+        }
+        if (out.length == 0) {
+          newboard.isBlackTurn = !newboard.isBlackTurn;
+          if (newboard.canKillKing()) {
+            console.log("checkmate");
+          }
+          else {
+            console.log("stalemate");
+          }
+          newboard.isBlackTurn = !newboard.isBlackTurn;
+        }
+        return newboard;
       }
       else {
         return board.resetHighlight();
@@ -210,7 +227,7 @@ class Board {
       legalmoves.push({x: tarx, y: tary});
     }
 
-    if ((piece.color == "w" && click.y == 6) || (piece.color == "b" && click.y == 1)) {
+    if (((piece.color == "w" && click.y == 6) || (piece.color == "b" && click.y == 1)) && this.grid[tary][tarx] == null) {
       tary += dy;
       tarx += dx;
       if (tary >= 0 && tary < 8 && tarx >= 0 && tarx < 8 && this.grid[tary][tarx] == null) {
@@ -236,7 +253,7 @@ class Board {
     }
     return false;
   }
-  
+
   clone() {
     const newBoard = new Board(
         this.grid.map(row => row.slice()),
