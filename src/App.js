@@ -55,10 +55,17 @@ export default function Game() {
     click.y = click.y > 7 ? 7 : click.y;
     click.x = click.x < 0 ? 0 : click.x;
     click.x = click.x > 7 ? 7 : click.x;
-    if (board.highlighter.some(position => (position.y == click.y && position.x == click.x))) {
-      setBoard((prevboard) => prevboard.makeMove(clicked, click));
+
+    function checkandmove(board) {
+      if (board.highlighter.some(position => (position.y == click.y && position.x == click.x))) {
+        return board.makeMove(clicked, click);
+      }
+      else {
+        return board.resetHighlight();
+      }
     }
-    setBoard((prevboard) => prevboard.resetHighlight());
+
+    setBoard((prevboard) => checkandmove(prevboard))
   }
 
   return (
@@ -108,10 +115,11 @@ class Board {
     newboard.isBlackTurn = !newboard.isBlackTurn;
     newboard.grid[newPos.y][newPos.x] = newboard.grid[oldPos.y][oldPos.x];
     newboard.grid[oldPos.y][oldPos.x] = null;
+    newboard.highlighter = [];
     return newboard;
   }
   
-  getLegalMoveSet(click) {
+  getNaiveLegalMoveSet(click) {
     let ourpieces = this.isBlackTurn ? this.blackPieces : this.whitePieces;
     if (!ourpieces.some(position => (position.y == click.y && position.x == click.x))) {
       return []
@@ -121,8 +129,8 @@ class Board {
       return this.getSlidingMoveSet(click);
     }
     else {
-      if (piece.type == "n") {
-        return this.getKnightMoveSet(click);
+      if (piece.type == "n" || piece.type == "k") {
+        return this.getKMoveSet(click);
       }
       else if (piece.type == "p") {
         return this.getPawnMoveSet(click);
@@ -131,6 +139,22 @@ class Board {
         return []
       }
     }
+  }
+
+  getLegalMoveSet(click) {
+    let ourpieces = this.isBlackTurn ? this.blackPieces : this.whitePieces;
+    if (!ourpieces.some(position => (position.y == click.y && position.x == click.x))) {
+      return []
+    }
+    let piece = this.grid[click.y][click.x];
+    let out = [];
+    let moves = this.getNaiveLegalMoveSet(click);
+    for (let i = 0; i < moves.length; i++) {
+      if (!this.makeMove(click, moves[i]).canKillKing()) {
+        out.push(moves[i]);
+      }
+    }
+    return out;
   }
 
   getSlidingMoveSet(click) {
@@ -153,7 +177,7 @@ class Board {
       return legalmoves;
   }
 
-  getKnightMoveSet(click) {
+  getKMoveSet(click) {
     let legalmoves = [];
     let piece = this.grid[click.y][click.x];
     for (let i = 0; i < piece.movement.length; i++) {
@@ -165,6 +189,7 @@ class Board {
     }
     return legalmoves;
   }
+
   getPawnMoveSet(click) {
     let legalmoves = [];
     let piece = this.grid[click.y][click.x];
@@ -195,6 +220,23 @@ class Board {
     return legalmoves;
   }
 
+  canKillKing() {
+    let ourPieces = this.isBlackTurn ? this.blackPieces : this.whitePieces;
+    for (let i = 0; i < ourPieces.length; i++) {
+      let pos = ourPieces[i];
+      if (this.grid[pos.y][pos.x].type == "k") {
+        continue
+      }
+      let moves = this.getNaiveLegalMoveSet(pos);
+      for (let j = 0; j < moves.length; j++) {
+        if (this.grid[moves[j].y][moves[j].x] != null && this.grid[moves[j].y][moves[j].x].type == "k") {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+  
   clone() {
     const newBoard = new Board(
         this.grid.map(row => row.slice()),
