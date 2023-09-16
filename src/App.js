@@ -26,29 +26,47 @@ function GameBoard({ board }) {
   let b = [];
   let row;
   let prev = [];
+
   if (board.lastmove != null) {
     let lastmov = board.lastmove;
     prev.push({x: lastmov.old_x, y: lastmov.old_y});
     prev.push({x: lastmov.new_x, y: lastmov.new_y});
   }
-  for (let i = 0; i < 8; i++) {
-    row = [];
-    for (let j = 0; j < 8; j++) { 
-      let highlighted;
 
-      if (board.highlighter.some(position => (position.y == i && position.x == j))) {
-        highlighted = 1;
-      }
-      else if (prev.some(position => (position.y == i && position.x == j))) {
-        highlighted = 2;
-      }
-      else {
-        highlighted = 0;
-      }
-
-      row.push(<Square parity={(i + j) % 2 == 0} piece={board.grid[i][j]} highlighted={highlighted} key={j}/>);
+  function createSquares(i, j) {
+    let highlighted;
+    if (board.highlighter.some(position => (position.y == i && position.x == j))) {
+      highlighted = 1;
     }
+    else if (prev.some(position => (position.y == i && position.x == j))) {
+      highlighted = 2;
+    }
+    else {
+      highlighted = 0;
+    }
+    row.push(<Square parity={(i + j) % 2 == 0} piece={board.grid[i][j]} highlighted={highlighted} key={j}/>);
+  }
+
+  function rowPush(i) {
     b.push(<div className="board-row" key={i}>{row}</div>);
+  }
+  if (!board.isBlackTurn) {
+    for (let i = 0; i < 8; i++) {
+      row = [];
+      for (let j = 0; j < 8; j++) { 
+        createSquares(i, j);
+      }
+      rowPush(i);
+    }
+  }
+  else {
+    for (let i = 7; i >= 0; i--) {
+      row = [];
+      for (let j = 7; j >= 0; j--) { 
+        createSquares(i, j);
+      }
+      rowPush(i);
+    }
   }
   return (<>{b}</>);
 }
@@ -72,6 +90,9 @@ export default function Game() {
     click.x = click.x < 0 ? 0 : click.x;
     click.y = click.y > 7 ? 7 : click.y;
     click.x = click.x > 7 ? 7 : click.x;
+    if (board.isBlackTurn) {
+      click = {x: 7 - click.x, y: 7 - click.y};
+    }
     setClicked(click);
     setBoard((prevboard) => prevboard.highlight(prevboard.getLegalMoveSet(click)));
     }
@@ -82,7 +103,9 @@ export default function Game() {
     click.y = click.y > 7 ? 7 : click.y;
     click.x = click.x < 0 ? 0 : click.x;
     click.x = click.x > 7 ? 7 : click.x;
-
+    if (board.isBlackTurn) {
+      click = {x: 7 - click.x, y: 7 - click.y};
+    }
     function checkandmove(board) {
       if (board.highlighter.some(position => (position.y == click.y && position.x == click.x))) {
         let newboard = board.makeMove(clicked, click);
