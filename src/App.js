@@ -3,7 +3,16 @@ import Draggable from 'react-draggable';
 
 function Square({ parity, piece, highlighted }) {
   let base = (parity ? "light" : "dark");
-  let color = highlighted ? base + "-highlight" : base;
+  let color;
+  if (highlighted == 2) {
+    color = base + "-prev";
+  }
+  else if (highlighted == 1) {
+    color = base + "-highlight";
+  }
+  else {
+    color = base;
+  }
   return (
     <div className={"square " + color}>
       <Draggable position={{x: 0, y: 0}}>
@@ -16,11 +25,28 @@ function Square({ parity, piece, highlighted }) {
 function GameBoard({ board }) {
   let b = [];
   let row;
-  let p = new Piece();
+  let prev = [];
+  if (board.lastmove != null) {
+    let lastmov = board.lastmove;
+    prev.push({x: lastmov.old_x, y: lastmov.old_y});
+    prev.push({x: lastmov.new_x, y: lastmov.new_y});
+  }
   for (let i = 0; i < 8; i++) {
     row = [];
     for (let j = 0; j < 8; j++) { 
-      row.push(<Square parity={(i + j) % 2 == 0} piece={board.grid[i][j]} highlighted={board.highlighter.some(position => (position.y == i && position.x == j))} key={j}/>);
+      let highlighted;
+
+      if (board.highlighter.some(position => (position.y == i && position.x == j))) {
+        highlighted = 1;
+      }
+      else if (prev.some(position => (position.y == i && position.x == j))) {
+        highlighted = 2;
+      }
+      else {
+        highlighted = 0;
+      }
+
+      row.push(<Square parity={(i + j) % 2 == 0} piece={board.grid[i][j]} highlighted={highlighted} key={j}/>);
     }
     b.push(<div className="board-row" key={i}>{row}</div>);
   }
@@ -60,12 +86,12 @@ export default function Game() {
     function checkandmove(board) {
       if (board.highlighter.some(position => (position.y == click.y && position.x == click.x))) {
         let newboard = board.makeMove(clicked, click);
-        let out = []
+        let totmoves = 0;
         let ourPieces = newboard.isBlackTurn ? newboard.blackPieces : newboard.whitePieces;
         for (let i = 0; i < ourPieces.length; i++) {
-          out = [...out, ...newboard.getLegalMoveSet(ourPieces[i])]
+          totmoves += newboard.getLegalMoveSet(ourPieces[i]).length;
         }
-        if (out.length == 0) {
+        if (totmoves == 0) {
           newboard.isBlackTurn = !newboard.isBlackTurn;
           if (newboard.canKillKing()) {
             console.log("checkmate");
@@ -95,12 +121,13 @@ export default function Game() {
 }
 
 class Board {
-  constructor(grid, whitePieces, blackPieces, isBlackTurn, highlighter) {
+  constructor(grid, whitePieces, blackPieces, isBlackTurn, highlighter, lastmove) {
     this.grid = grid;
     this.highlighter = highlighter;
     this.whitePieces = whitePieces;
     this.blackPieces = blackPieces;
     this.isBlackTurn = isBlackTurn;
+    this.lastmove = lastmove;
   }
 
   highlight(validMoves) {
@@ -119,20 +146,41 @@ class Board {
 
   makeMove(oldPos, newPos) {
     let newboard = this.clone()
+    let enpassant = newboard.grid[oldPos.y][oldPos.x].type == "p" && oldPos.x != newPos.x && newboard.grid[newPos.y][newPos.x] == null;
     if (newboard.isBlackTurn) {
       newboard.blackPieces = newboard.blackPieces.filter((piece)=>{return !(piece.y == oldPos.y && piece.x == oldPos.x)})
       newboard.blackPieces.push(newPos);
-      newboard.whitePieces = newboard.whitePieces.filter((piece)=>{return !(piece.y == newPos.y && piece.x == newPos.x)});
+      if (enpassant) {
+        newboard.whitePieces = newboard.whitePieces.filter((piece)=>{return !(piece.y == (newPos.y - 1) && piece.x == newPos.x)});
+      }
+      else {
+        newboard.whitePieces = newboard.whitePieces.filter((piece)=>{return !(piece.y == newPos.y && piece.x == newPos.x)});
+      }
     }
     else {
       newboard.whitePieces = newboard.whitePieces.filter((piece)=>{return !(piece.y == oldPos.y && piece.x == oldPos.x)})
       newboard.whitePieces.push(newPos);
-      newboard.blackPieces = newboard.blackPieces.filter((piece)=>{return !(piece.y == newPos.y && piece.x == newPos.x)});
+      if (enpassant) {
+        newboard.blackPieces = newboard.blackPieces.filter((piece)=>{return !(piece.y == (newPos.y + 1) && piece.x == newPos.x)});
+      }
+      else {
+        newboard.blackPieces = newboard.blackPieces.filter((piece)=>{return !(piece.y == newPos.y && piece.x == newPos.x)});
+      }
     }
-    newboard.isBlackTurn = !newboard.isBlackTurn;
+    newboard.lastmove = {
+      old_x: oldPos.x,
+      old_y: oldPos.y,
+      new_x: newPos.x,
+      new_y: newPos.y,
+    };
     newboard.grid[newPos.y][newPos.x] = newboard.grid[oldPos.y][oldPos.x];
     newboard.grid[oldPos.y][oldPos.x] = null;
+    if (enpassant) {
+      let back = newboard.isBlackTurn ? -1 : 1;
+      newboard.grid[newPos.y + back][newPos.x] = null;
+    }
     newboard.highlighter = [];
+    newboard.isBlackTurn = !newboard.isBlackTurn;
     return newboard;
   }
   
@@ -163,7 +211,6 @@ class Board {
     if (!ourpieces.some(position => (position.y == click.y && position.x == click.x))) {
       return []
     }
-    let piece = this.grid[click.y][click.x];
     let out = [];
     let moves = this.getNaiveLegalMoveSet(click);
     for (let i = 0; i < moves.length; i++) {
@@ -213,8 +260,11 @@ class Board {
     for (let i = 1; i < piece.movement.length; i++){
       let tary = click.y + piece.movement[i][0];
       let tarx = click.x + piece.movement[i][1];
-      if (tary >= 0 && tary < 8 && tarx >= 0 && tarx < 8 && this.grid[tary][tarx] != null && this.grid[tary][tarx].color != piece.color) {
-        legalmoves.push({x: tarx, y: tary});
+      if (tary >= 0 && tary < 8 && tarx >= 0 && tarx < 8) {
+        let enpassant = this.grid[tary][tarx] == null && this.grid[click.y][tarx] != null && this.grid[click.y][tarx].type == "p" && this.grid[click.y][tarx].color != piece.color && this.lastmove.new_x == tarx && this.lastmove.new_y == click.y && this.lastmove.old_x == tarx && this.lastmove.old_y == tary + piece.movement[i][0];
+        if ((this.grid[tary][tarx] != null && this.grid[tary][tarx].color != piece.color) || enpassant) {
+          legalmoves.push({x: tarx, y: tary});
+        }
       }
     }
 
@@ -241,9 +291,6 @@ class Board {
     let ourPieces = this.isBlackTurn ? this.blackPieces : this.whitePieces;
     for (let i = 0; i < ourPieces.length; i++) {
       let pos = ourPieces[i];
-      if (this.grid[pos.y][pos.x].type == "k") {
-        continue
-      }
       let moves = this.getNaiveLegalMoveSet(pos);
       for (let j = 0; j < moves.length; j++) {
         if (this.grid[moves[j].y][moves[j].x] != null && this.grid[moves[j].y][moves[j].x].type == "k") {
@@ -260,7 +307,8 @@ class Board {
         this.whitePieces.map(piece => ({...piece})),
         this.blackPieces.map(piece => ({...piece})),
         this.isBlackTurn,
-        [...this.highlighter]
+        [...this.highlighter],
+        {...this.lastmove}
     );
     return newBoard;
   }
@@ -295,7 +343,7 @@ function getBoardFromFEN(FEN, isBlackTurn) {
     }
     counter++;
   }
-  return new Board(grid, whitePieces, blackPieces, isBlackTurn, highlighter);
+  return new Board(grid, whitePieces, blackPieces, isBlackTurn, highlighter, null);
 }
 
 class Piece {

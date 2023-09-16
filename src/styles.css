@@ -81,6 +81,14 @@ body {
   background: #675c91;
 }
 
+.light-prev {
+  background: #f5f57a;
+}
+
+.dark-prev {
+  background: #d0d030;
+}
+
 .board-row:after {
   clear: both;
   content: '';
