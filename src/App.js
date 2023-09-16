@@ -146,12 +146,23 @@ class Board {
 
   makeMove(oldPos, newPos) {
     let newboard = this.clone()
+    newboard.grid[oldPos.y][oldPos.x].hasmoved = true;
     let enpassant = newboard.grid[oldPos.y][oldPos.x].type == "p" && oldPos.x != newPos.x && newboard.grid[newPos.y][newPos.x] == null;
+    let kscastle = newboard.grid[oldPos.y][oldPos.x].type == "k" && newPos.x == oldPos.x + 2;
+    let qscastle = newboard.grid[oldPos.y][oldPos.x].type == "k" && newPos.x == oldPos.x - 2;
     if (newboard.isBlackTurn) {
       newboard.blackPieces = newboard.blackPieces.filter((piece)=>{return !(piece.y == oldPos.y && piece.x == oldPos.x)})
       newboard.blackPieces.push(newPos);
       if (enpassant) {
         newboard.whitePieces = newboard.whitePieces.filter((piece)=>{return !(piece.y == (newPos.y - 1) && piece.x == newPos.x)});
+      }
+      else if (kscastle) {
+        newboard.blackPieces = newboard.blackPieces.filter((piece)=>{return !(piece.y == newPos.y && piece.x == newPos.x + 1)})
+        newboard.blackPieces.push({y: newPos.y, x: newPos.x - 1})
+      }
+      else if (qscastle) {
+        newboard.blackPieces = newboard.blackPieces.filter((piece)=>{return !(piece.y == newPos.y && piece.x == newPos.x - 2)})
+        newboard.blackPieces.push({y: newPos.y, x: newPos.x + 1})
       }
       else {
         newboard.whitePieces = newboard.whitePieces.filter((piece)=>{return !(piece.y == newPos.y && piece.x == newPos.x)});
@@ -162,6 +173,14 @@ class Board {
       newboard.whitePieces.push(newPos);
       if (enpassant) {
         newboard.blackPieces = newboard.blackPieces.filter((piece)=>{return !(piece.y == (newPos.y + 1) && piece.x == newPos.x)});
+      }
+      else if (kscastle) {
+        newboard.whitePieces = newboard.whitePieces.filter((piece)=>{return !(piece.y == newPos.y && piece.x == newPos.x + 1)})
+        newboard.whitePieces.push({y: newPos.y, x: newPos.x - 1})
+      }
+      else if (qscastle) {
+        newboard.whitePieces = newboard.whitePieces.filter((piece)=>{return !(piece.y == newPos.y && piece.x == newPos.x - 2)})
+        newboard.whitePieces.push({y: newPos.y, x: newPos.x + 1})
       }
       else {
         newboard.blackPieces = newboard.blackPieces.filter((piece)=>{return !(piece.y == newPos.y && piece.x == newPos.x)});
@@ -178,6 +197,14 @@ class Board {
     if (enpassant) {
       let back = newboard.isBlackTurn ? -1 : 1;
       newboard.grid[newPos.y + back][newPos.x] = null;
+    }
+    else if (kscastle) {
+      newboard.grid[newPos.y][newPos.x - 1] = newboard.grid[newPos.y][newPos.x + 1];
+      newboard.grid[newPos.y][newPos.x + 1] = null;
+    }
+    else if (qscastle) {
+      newboard.grid[newPos.y][newPos.x + 1] = newboard.grid[newPos.y][newPos.x - 2];
+      newboard.grid[newPos.y][newPos.x - 2] = null;
     }
     newboard.highlighter = [];
     newboard.isBlackTurn = !newboard.isBlackTurn;
@@ -218,6 +245,119 @@ class Board {
         out.push(moves[i]);
       }
     }
+    if (this.grid[click.y][click.x].type == "k") {
+      out = this.canCastle(out, click);
+    }
+    return out;
+  }
+
+  canCastle(out, click) {
+    let king = this.grid[click.y][click.x];
+    if (king.hasmoved) {
+      return out;
+    }
+    out = this.canCastleKingside(out, click);
+    out = this.canCastleQueenside(out, click);
+    return out;
+  }
+
+  canCastleKingside(out, click) {
+    let piece = this.grid[click.y][click.x];
+    let kingside = this.grid[click.y][click.x + 3];
+
+    if (kingside.type != "r" || kingside.color != piece.color || kingside.hasmoved) {
+      return out;
+    }
+
+    if (this.grid[click.y][click.x + 1] != null || this.grid[click.y][click.x + 2] != null) {
+      return out;
+    }
+
+    let wasBlackTurn = this.isBlackTurn;
+    this.isBlackTurn = !wasBlackTurn;
+
+    if (this.canKillKing()) {
+      this.isBlackTurn = wasBlackTurn;
+      return out;
+    }
+
+    this.grid[click.y][click.x + 1] = this.grid[click.y][click.x];
+    this.grid[click.y][click.x] = null;
+
+    if (this.canKillKing()) {
+      this.isBlackTurn = wasBlackTurn;
+      this.grid[click.y][click.x] = this.grid[click.y][click.x + 1];
+      this.grid[click.y][click.x + 1] = null;
+      return out;
+    }
+
+    this.grid[click.y][click.x + 2] = this.grid[click.y][click.x + 1];
+    this.grid[click.y][click.x + 1] = this.grid[click.y][click.x + 3];
+    this.grid[click.y][click.x + 3] = null;
+    if (this.canKillKing()) {
+      this.isBlackTurn = wasBlackTurn;
+      this.grid[click.y][click.x] = this.grid[click.y][click.x + 2];
+      this.grid[click.y][click.x + 2] = null;
+      this.grid[click.y][click.x + 3] = this.grid[click.y][click.x + 1];
+      this.grid[click.y][click.x + 1] = null;
+      return out;
+    }
+    this.isBlackTurn = wasBlackTurn;
+    this.grid[click.y][click.x] = this.grid[click.y][click.x + 2];
+    this.grid[click.y][click.x + 2] = null;
+    this.grid[click.y][click.x + 3] = this.grid[click.y][click.x + 1];
+    this.grid[click.y][click.x + 1] = null;
+    out.push({x: click.x + 2, y: click.y});
+    return out;
+  }
+
+  canCastleQueenside(out, click) {
+    let piece = this.grid[click.y][click.x];
+    let queenside = this.grid[click.y][click.x - 4];
+
+    if (queenside.type != "r" || queenside.color != piece.color || queenside.hasmoved) {
+      return out;
+    }
+
+    if (this.grid[click.y][click.x - 1] != null || this.grid[click.y][click.x - 2] != null || this.grid[click.y][click.x - 3] != null) {
+      return out;
+    }
+
+    let wasBlackTurn = this.isBlackTurn;
+    this.isBlackTurn = !wasBlackTurn;
+
+    if (this.canKillKing()) {
+      this.isBlackTurn = wasBlackTurn;
+      return out;
+    }
+
+    this.grid[click.y][click.x - 1] = this.grid[click.y][click.x];
+    this.grid[click.y][click.x] = null;
+
+    if (this.canKillKing()) {
+      this.isBlackTurn = wasBlackTurn;
+      this.grid[click.y][click.x] = this.grid[click.y][click.x - 1];
+      this.grid[click.y][click.x - 1] = null;
+      return out;
+    }
+
+    this.grid[click.y][click.x - 2] = this.grid[click.y][click.x - 1];
+    this.grid[click.y][click.x - 1] = this.grid[click.y][click.x - 4];
+    this.grid[click.y][click.x - 4] = null;
+    if (this.canKillKing()) {
+      this.isBlackTurn = wasBlackTurn;
+      this.grid[click.y][click.x] = this.grid[click.y][click.x - 2];
+      this.grid[click.y][click.x - 2] = null;
+      this.grid[click.y][click.x - 4] = this.grid[click.y][click.x - 1];
+      this.grid[click.y][click.x - 1] = null;
+      return out;
+    }
+    this.isBlackTurn = wasBlackTurn;
+    this.grid[click.y][click.x] = this.grid[click.y][click.x - 2];
+    this.grid[click.y][click.x - 2] = null;
+    this.grid[click.y][click.x - 4] = this.grid[click.y][click.x - 1];
+    this.grid[click.y][click.x - 1] = null;
+    out.push({x: click.x - 2, y: click.y});
     return out;
   }
 
@@ -303,7 +443,7 @@ class Board {
 
   clone() {
     const newBoard = new Board(
-        this.grid.map(row => row.slice()),
+        this.grid.map(row => row.map(piece => (piece ? new Piece(piece.type, piece.color, piece.movement, piece.hasmoved) : null))),
         this.whitePieces.map(piece => ({...piece})),
         this.blackPieces.map(piece => ({...piece})),
         this.isBlackTurn,
@@ -347,10 +487,11 @@ function getBoardFromFEN(FEN, isBlackTurn) {
 }
 
 class Piece {
-  constructor(type, color, movement) {
+  constructor(type, color, movement, hasmoved) {
     this.type = type;
     this.color = color;
     this.movement = movement;
+    this.hasmoved = hasmoved;
   }
 
   isSliding() {
@@ -361,22 +502,22 @@ class Piece {
 function makePiece(id, color) {
   if (id == "p") {
     let dir = color == "b" ? 1 : -1;
-    return new Piece("p", color, [[dir, 0], [dir, 1], [dir, -1]]);
+    return new Piece("p", color, [[dir, 0], [dir, 1], [dir, -1]], false);
   }
   else if (id == "n") {
-    return new Piece("n", color, [[1, 2], [2, 1], [-1, 2], [-2, 1], [1, -2], [2, -1], [-1, -2], [-2, -1]]);
+    return new Piece("n", color, [[1, 2], [2, 1], [-1, 2], [-2, 1], [1, -2], [2, -1], [-1, -2], [-2, -1]], false);
   }
   else if (id == "b") {
-    return new Piece("b", color, [[1, 1], [1, -1], [-1, 1], [-1, -1]]);
+    return new Piece("b", color, [[1, 1], [1, -1], [-1, 1], [-1, -1]], false);
   }
   else if (id == "r") {
-    return new Piece("r", color, [[1, 0], [-1, 0], [0, 1], [0, -1]]);
+    return new Piece("r", color, [[1, 0], [-1, 0], [0, 1], [0, -1]], false);
   }
   else if (id == "q") {
-    return new Piece("q", color, [[1, 1], [1, -1], [-1, 1], [-1, -1], [1, 0], [-1, 0], [0, 1], [0, -1]]);
+    return new Piece("q", color, [[1, 1], [1, -1], [-1, 1], [-1, -1], [1, 0], [-1, 0], [0, 1], [0, -1]], false);
   }
   else if (id == "k") {
-    return new Piece("k", color, [[1, 1], [1, 0], [1, -1], [0, 1], [0, -1], [-1, 1], [-1, 0], [-1, -1]]);
+    return new Piece("k", color, [[1, 1], [1, 0], [1, -1], [0, 1], [0, -1], [-1, 1], [-1, 0], [-1, -1]], false);
   }
 }
 
