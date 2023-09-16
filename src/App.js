@@ -288,7 +288,7 @@ class Board {
     let piece = this.grid[click.y][click.x];
     let kingside = this.grid[click.y][click.x + 3];
 
-    if (kingside.type != "r" || kingside.color != piece.color || kingside.hasmoved) {
+    if (kingside == null || kingside.type != "r" || kingside.color != piece.color || kingside.hasmoved) {
       return out;
     }
 
@@ -338,7 +338,7 @@ class Board {
     let piece = this.grid[click.y][click.x];
     let queenside = this.grid[click.y][click.x - 4];
 
-    if (queenside.type != "r" || queenside.color != piece.color || queenside.hasmoved) {
+    if (queenside == null || queenside.type != "r" || queenside.color != piece.color || queenside.hasmoved) {
       return out;
     }
 
