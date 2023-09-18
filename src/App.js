@@ -76,6 +76,7 @@ export default function Game() {
   const [board, setBoard] = useState(getBoardFromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR", false));
   const [localMousePos, setLocalMousePos] = useState({});
   const [clicked, setClicked] = useState({});
+  const [promoting, setPromoting] = useState(null);
 
   const handleMouseMove = (event) => {
     const localX = event.clientX - event.currentTarget.offsetLeft;
@@ -95,8 +96,44 @@ export default function Game() {
     }
     setClicked(click);
     setBoard((prevboard) => prevboard.highlight(prevboard.getLegalMoveSet(click)));
-    }
+  }
 
+  function isCheckOrStaleMate(newboard) {
+    let totmoves = 0;
+    let ourPieces = newboard.isBlackTurn ? newboard.blackPieces : newboard.whitePieces;
+    for (let i = 0; i < ourPieces.length; i++) {
+      totmoves += newboard.getLegalMoveSet(ourPieces[i]).length;
+    }
+    if (totmoves == 0) {
+      newboard.isBlackTurn = !newboard.isBlackTurn;
+      if (newboard.canKillKing()) {
+        newboard.isBlackTurn = !newboard.isBlackTurn;
+        return "c";
+      }
+      else {
+        newboard.isBlackTurn = !newboard.isBlackTurn;
+        return "s";
+      }
+    }
+    else {
+      return "n";
+    }
+  }
+
+  function promotePawn(type) {
+    let pawnloc = promoting;
+    board.grid[pawnloc.y][pawnloc.x] = makePiece(type, board.isBlackTurn ? "w" : "b");
+    board.grid[pawnloc.y][pawnloc.x].hasmoved = true;
+    let out = isCheckOrStaleMate(board);
+    if (out == "c") {
+      console.log("checkmate");
+    }
+    else if (out == "s") {
+      console.log("stalemate");
+    }
+    setPromoting(null);
+  }
+  
   function onRelease() {
     let click = {y: Math.floor(localMousePos.y/100), x: Math.floor(localMousePos.x/100)};
     click.y = click.y < 0 ? 0 : click.y;
@@ -106,23 +143,22 @@ export default function Game() {
     if (board.isBlackTurn) {
       click = {x: 7 - click.x, y: 7 - click.y};
     }
+
     function checkandmove(board) {
       if (board.highlighter.some(position => (position.y == click.y && position.x == click.x))) {
+        let last = board.isBlackTurn ? 7 : 0;
         let newboard = board.makeMove(clicked, click);
-        let totmoves = 0;
-        let ourPieces = newboard.isBlackTurn ? newboard.blackPieces : newboard.whitePieces;
-        for (let i = 0; i < ourPieces.length; i++) {
-          totmoves += newboard.getLegalMoveSet(ourPieces[i]).length;
+        if (newboard.grid[click.y][click.x].type == "p" && click.y == last) {
+          setPromoting({y: click.y, x: click.x});
         }
-        if (totmoves == 0) {
-          newboard.isBlackTurn = !newboard.isBlackTurn;
-          if (newboard.canKillKing()) {
-            console.log("checkmate");
-          }
-          else {
+        else {
+          let out = isCheckOrStaleMate(newboard);
+          if (out == "s") {
             console.log("stalemate");
           }
-          newboard.isBlackTurn = !newboard.isBlackTurn;
+          else if (out == "c") {
+            console.log("checkmate")
+          }
         }
         return newboard;
       }
@@ -133,11 +169,34 @@ export default function Game() {
 
     setBoard((prevboard) => checkandmove(prevboard))
   }
-
+  
+  let promotionmenu;
+  if (promoting == null) {
+    promotionmenu = (<></>)
+  }
+  else {
+    promotionmenu = (<ol> Promote pawn to:
+      <li key="queen">
+        <button onClick={() => promotePawn("q")}>queen</button> 
+      </li>
+      <li key="rook">
+        <button onClick={() => promotePawn("r")}>rook</button> 
+      </li>
+      <li key="bishop">
+        <button onClick={() => promotePawn("b")}>bishop</button> 
+      </li>
+      <li key="knight">
+        <button onClick={() => promotePawn("n")}>knight</button> 
+      </li>
+    </ol>)
+  }
   return (
     <div className="game">
-      <div onMouseDown={onClick} onMouseUp={onRelease} className="game-board" onMouseMove={handleMouseMove}>
+      <div onMouseDown={promoting == null ? onClick : null} onMouseUp={promoting == null ? onRelease : null} className="game-board" onMouseMove={handleMouseMove}>
         <GameBoard board={board}/>
+      </div>
+      <div className="game-info">
+        {promotionmenu}
       </div>
     </div>
   );
