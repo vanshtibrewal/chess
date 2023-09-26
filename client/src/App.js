@@ -1,77 +1,11 @@
 import { useState } from 'react';
-import Draggable from 'react-draggable';
 import { Board } from './Board.js'
-import { Piece, makePiece } from './Piece.js'
+import { GameBoard } from './GameBoard.js';
+import { makePiece } from './Piece.js'
+import { io } from "socket.io-client"
+import { useEffect } from "react";
 
-function Square({ parity, piece, highlighted }) {
-  let base = (parity ? "light" : "dark");
-  let color;
-  if (highlighted == 2) {
-    color = base + "-prev";
-  }
-  else if (highlighted == 1) {
-    color = base + "-highlight";
-  }
-  else {
-    color = base;
-  }
-  return (
-    <div className={"square " + color}>
-      <Draggable position={{x: 0, y: 0}}>
-          {getImgFromPiece(piece)}
-      </Draggable>
-    </div>
-  );
-}
-
-function GameBoard({ board }) {
-  let b = [];
-  let row;
-  let prev = [];
-
-  if (board.lastmove != null) {
-    let lastmov = board.lastmove;
-    prev.push({x: lastmov.old_x, y: lastmov.old_y});
-    prev.push({x: lastmov.new_x, y: lastmov.new_y});
-  }
-
-  function createSquares(i, j) {
-    let highlighted;
-    if (board.highlighter.some(position => (position.y == i && position.x == j))) {
-      highlighted = 1;
-    }
-    else if (prev.some(position => (position.y == i && position.x == j))) {
-      highlighted = 2;
-    }
-    else {
-      highlighted = 0;
-    }
-    row.push(<Square parity={(i + j) % 2 == 0} piece={board.grid[i][j]} highlighted={highlighted} key={j}/>);
-  }
-
-  function rowPush(i) {
-    b.push(<div className="board-row" key={i}>{row}</div>);
-  }
-  if (!board.isBlackTurn) {
-    for (let i = 0; i < 8; i++) {
-      row = [];
-      for (let j = 0; j < 8; j++) { 
-        createSquares(i, j);
-      }
-      rowPush(i);
-    }
-  }
-  else {
-    for (let i = 7; i >= 0; i--) {
-      row = [];
-      for (let j = 7; j >= 0; j--) { 
-        createSquares(i, j);
-      }
-      rowPush(i);
-    }
-  }
-  return (<>{b}</>);
-}
+const socket = io.connect("http://localhost:3001"); // backend/server location
 
 export default function Game() {
   // const [board, setBoard] = useState(getBoardFromFEN("2Q2bnr/4p1pq/5pkr/7p/7P/4P3/PPPP1PP1/RNB1KBNR", false));
@@ -79,6 +13,14 @@ export default function Game() {
   const [localMousePos, setLocalMousePos] = useState({});
   const [clicked, setClicked] = useState({});
   const [promoting, setPromoting] = useState(null);
+
+  useEffect(() => {
+    let moveHandler = (data) => {
+      setBoard((prevboard) => move(prevboard, data.source, data.dest));
+    };
+    socket.on("receive_move", moveHandler);
+    return () => socket.off("receive_move", moveHandler);
+  }, [socket]);
 
   const handleMouseMove = (event) => {
     const localX = event.clientX - event.currentTarget.offsetLeft;
@@ -97,7 +39,51 @@ export default function Game() {
       click = {x: 7 - click.x, y: 7 - click.y};
     }
     setClicked(click);
-    setBoard((prevboard) => prevboard.highlight(prevboard.getLegalMoveSet(click)));
+    setBoard((prevboard) => {
+        let newboard = prevboard.highlight(prevboard.getLegalMoveSet(click));
+        return newboard;
+      }
+    );
+  }
+
+  function move(board, source, dest) {
+    let last = board.isBlackTurn ? 7 : 0;
+    let newboard = board.makeMove(source, dest);
+    if (newboard.grid[dest.y][dest.x].type == "p" && dest.y == last) {
+      setPromoting({y: dest.y, x: dest.x});
+    }
+    else {
+      let out = isCheckOrStaleMate(newboard);
+      if (out == "s") {
+        alert("stalemate");
+      }
+      else if (out == "c") {
+        alert("checkmate");
+      }
+    }
+    return newboard;
+  }
+  
+  function onRelease() {
+    let click = {y: Math.floor(localMousePos.y/100), x: Math.floor(localMousePos.x/100)};
+    click.y = click.y < 0 ? 0 : click.y;
+    click.y = click.y > 7 ? 7 : click.y;
+    click.x = click.x < 0 ? 0 : click.x;
+    click.x = click.x > 7 ? 7 : click.x;
+    if (board.isBlackTurn) {
+      click = {x: 7 - click.x, y: 7 - click.y};
+    }
+
+    function checkandmove(board) {
+      if (board.highlighter.some(position => (position.y == click.y && position.x == click.x))) {
+        socket.emit("send_move", {source: clicked, dest: click});
+        return move(board, clicked, click);
+      }
+      else {
+        return board.resetHighlight();
+      }
+    }
+    setBoard((prevboard) => checkandmove(prevboard));
   }
 
   function isCheckOrStaleMate(newboard) {
@@ -128,48 +114,12 @@ export default function Game() {
     board.grid[pawnloc.y][pawnloc.x].hasmoved = true;
     let out = isCheckOrStaleMate(board);
     if (out == "c") {
-      console.log("checkmate");
+      alert("checkmate");
     }
     else if (out == "s") {
-      console.log("stalemate");
+      alert("stalemate");
     }
     setPromoting(null);
-  }
-  
-  function onRelease() {
-    let click = {y: Math.floor(localMousePos.y/100), x: Math.floor(localMousePos.x/100)};
-    click.y = click.y < 0 ? 0 : click.y;
-    click.y = click.y > 7 ? 7 : click.y;
-    click.x = click.x < 0 ? 0 : click.x;
-    click.x = click.x > 7 ? 7 : click.x;
-    if (board.isBlackTurn) {
-      click = {x: 7 - click.x, y: 7 - click.y};
-    }
-
-    function checkandmove(board) {
-      if (board.highlighter.some(position => (position.y == click.y && position.x == click.x))) {
-        let last = board.isBlackTurn ? 7 : 0;
-        let newboard = board.makeMove(clicked, click);
-        if (newboard.grid[click.y][click.x].type == "p" && click.y == last) {
-          setPromoting({y: click.y, x: click.x});
-        }
-        else {
-          let out = isCheckOrStaleMate(newboard);
-          if (out == "s") {
-            console.log("stalemate");
-          }
-          else if (out == "c") {
-            console.log("checkmate")
-          }
-        }
-        return newboard;
-      }
-      else {
-        return board.resetHighlight();
-      }
-    }
-
-    setBoard((prevboard) => checkandmove(prevboard))
   }
   
   let promotionmenu;
@@ -238,14 +188,4 @@ function getBoardFromFEN(FEN, isBlackTurn) {
 
 function generatePosition(y, x) {
   return {y: y, x: x};
-}
-
-function getImgFromPiece(piece) {
-  if (piece == null) {
-    return <></>
-  }
-  else {
-    let n = piece.color == "w" ? 0 : 1;
-    return (<img position={{x: 0, y: 0}} draggable="false" className="square img" src={"/images/" + piece.type + "_" + n + ".png"}/>);
-  }
 }
