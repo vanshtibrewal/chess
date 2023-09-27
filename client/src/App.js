@@ -8,11 +8,15 @@ import { useEffect } from "react";
 const socket = io.connect("http://localhost:3001"); // backend/server location
 
 export default function Game() {
-  // const [board, setBoard] = useState(getBoardFromFEN("2Q2bnr/4p1pq/5pkr/7p/7P/4P3/PPPP1PP1/RNB1KBNR", false));
-  const [board, setBoard] = useState(getBoardFromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR", false));
+  const [board, setBoard] = useState(getBoardFromFEN("2Q2bnr/4p1pq/5pkr/7p/7P/4P3/PPPP1PP1/RNB1KBNR", false));
+  // const [board, setBoard] = useState(getBoardFromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR", false));
   const [localMousePos, setLocalMousePos] = useState({});
   const [clicked, setClicked] = useState({});
   const [promoting, setPromoting] = useState(null);
+  const [room, setRoom] = useState(null);
+  const [connected, setConnected] = useState(false);
+  const [started, setStarted] = useState(false);
+  const [isBlack, setIsBlack] = useState(false);
 
   useEffect(() => {
     let moveHandler = (data) => {
@@ -20,6 +24,23 @@ export default function Game() {
     };
     socket.on("receive_move", moveHandler);
     return () => socket.off("receive_move", moveHandler);
+  }, [socket]);
+
+  useEffect(() => {
+    let start = () => {
+      setStarted(true);
+      alert("Game has started!")
+    };
+    socket.on("start_game", start);
+    return () => socket.off("start_game", start);
+  }, [socket]);
+
+  useEffect(() => {
+    let implement_promote = (data) => {
+      setBoard((prevboad) => promote(data.type, data.pawnloc, prevboad));
+    };
+    socket.on("receive_promotion", implement_promote);
+    return () => socket.off("receive_promotion", implement_promote);
   }, [socket]);
 
   const handleMouseMove = (event) => {
@@ -35,7 +56,7 @@ export default function Game() {
     click.x = click.x < 0 ? 0 : click.x;
     click.y = click.y > 7 ? 7 : click.y;
     click.x = click.x > 7 ? 7 : click.x;
-    if (board.isBlackTurn) {
+    if (isBlack) {
       click = {x: 7 - click.x, y: 7 - click.y};
     }
     setClicked(click);
@@ -51,6 +72,7 @@ export default function Game() {
     let newboard = board.makeMove(source, dest);
     if (newboard.grid[dest.y][dest.x].type == "p" && dest.y == last) {
       setPromoting({y: dest.y, x: dest.x});
+      newboard.isBlackTurn = !newboard.isBlackTurn;
     }
     else {
       let out = isCheckOrStaleMate(newboard);
@@ -70,13 +92,13 @@ export default function Game() {
     click.y = click.y > 7 ? 7 : click.y;
     click.x = click.x < 0 ? 0 : click.x;
     click.x = click.x > 7 ? 7 : click.x;
-    if (board.isBlackTurn) {
+    if (isBlack) {
       click = {x: 7 - click.x, y: 7 - click.y};
     }
 
     function checkandmove(board) {
       if (board.highlighter.some(position => (position.y == click.y && position.x == click.x))) {
-        socket.emit("send_move", {source: clicked, dest: click});
+        socket.emit("send_move", {source: clicked, dest: click, room: room});
         return move(board, clicked, click);
       }
       else {
@@ -108,11 +130,12 @@ export default function Game() {
     }
   }
 
-  function promotePawn(type) {
-    let pawnloc = promoting;
-    board.grid[pawnloc.y][pawnloc.x] = makePiece(type, board.isBlackTurn ? "w" : "b");
-    board.grid[pawnloc.y][pawnloc.x].hasmoved = true;
-    let out = isCheckOrStaleMate(board);
+  function promote(type, pawnloc, board) {
+    let newboard = board.clone();
+    newboard.grid[pawnloc.y][pawnloc.x] = makePiece(type, newboard.isBlackTurn ? "b" : "w");
+    newboard.grid[pawnloc.y][pawnloc.x].hasmoved = true;
+    newboard.isBlackTurn = !newboard.isBlackTurn;
+    let out = isCheckOrStaleMate(newboard);
     if (out == "c") {
       alert("checkmate");
     }
@@ -120,10 +143,16 @@ export default function Game() {
       alert("stalemate");
     }
     setPromoting(null);
+    return newboard;
+  }
+
+  function promotePawn(type) {
+    setBoard((prevboad) => promote(type, promoting, prevboad));
+    socket.emit("send_promotion", {type: type, pawnloc: promoting, room: room});
   }
   
   let promotionmenu;
-  if (promoting == null) {
+  if (promoting == null || ((board.isBlackTurn && !isBlack) || (!board.isBlackTurn && isBlack))) {
     promotionmenu = (<></>)
   }
   else {
@@ -142,10 +171,52 @@ export default function Game() {
       </li>
     </ol>)
   }
+  let roomel;
+
+  function joinRoom() {
+    socket.emit("join_room", room, (response) => {
+      let con = response == 2 ? false : true;
+      setConnected(con);
+      if (response == 0) {
+        setIsBlack(false);
+      }
+      else {
+        setIsBlack(true);
+      }
+      if (!con) {
+        alert("room is full!");
+      }
+    });
+  }
+
+  if (!connected) {
+    roomel = <>
+      <input placeholder="Room Number..." onChange={(event) => {setRoom(event.target.value);}}/>
+      <button onClick={joinRoom}> Join Room </button>
+    </>
+  }
+  else {
+    if (!started) {
+      roomel = (
+        <>
+          <div>Room: {room}<br />Waiting for opponent to join...</div>
+        </>
+      );
+    }
+    else {
+      roomel = <>Room: {room}</>
+    }
+  }
+
+  let mouse_active = !promoting && started && ((board.isBlackTurn && isBlack) || (!board.isBlackTurn && !isBlack));
+
   return (
     <div className="game">
-      <div onMouseDown={promoting == null ? onClick : null} onMouseUp={promoting == null ? onRelease : null} className="game-board" onMouseMove={handleMouseMove}>
-        <GameBoard board={board}/>
+      <div className="game-info room">
+        {roomel}
+      </div>
+      <div onMouseDown={mouse_active ? onClick : null} onMouseUp={mouse_active ? onRelease : null} className="game-board" onMouseMove={handleMouseMove}>
+        <GameBoard board={board} isBlack={isBlack}/>
       </div>
       <div className="game-info">
         {promotionmenu}

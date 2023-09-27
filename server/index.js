@@ -15,10 +15,27 @@ const io = new Server(server, {
 });
 
 io.on("connection", (socket) => {
-    console.log("connection with socket id " + socket.id);
+    socket.on("join_room", (data, callback) => {
+        const roomSize = io.of('/').adapter.rooms.get(data)?.size || 0;
+        if (roomSize < 2) {
+            socket.join(data);
+            if (roomSize == 1) {
+                io.sockets.in(data).emit("start_game");
+            }
+            callback(roomSize); // callback roomSize so they know a) what player they are b) whether to wait for opponent
+        }
+        else {
+            callback(2);
+        }
+    });
+
     socket.on("send_move", (data) => {
-        socket.broadcast.emit("receive_move", data);
-    });    
+        socket.to(data.room).emit("receive_move", data);
+    });   
+
+    socket.on("send_promotion", (data) => {
+        socket.to(data.room).emit("receive_promotion", data);
+    });
 });
 
 

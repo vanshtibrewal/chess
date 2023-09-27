@@ -1,6 +1,6 @@
 import { Square } from "./Square.js"
 
-export function GameBoard({ board }) {
+export function GameBoard({ board, isBlack }) {
     let b = [];
     let row;
     let prev = [];
@@ -28,7 +28,7 @@ export function GameBoard({ board }) {
     function rowPush(i) {
       b.push(<div className="board-row" key={i}>{row}</div>);
     }
-    if (!board.isBlackTurn) {
+    if (!isBlack) {
       for (let i = 0; i < 8; i++) {
         row = [];
         for (let j = 0; j < 8; j++) { 
